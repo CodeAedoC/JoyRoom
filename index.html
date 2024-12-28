@@ -136,7 +136,7 @@
     <div class="container">
         <div class="room">
             <div class="status" id="status">Loading...</div>
-            
+
             <div>
                 <h3>Your Room ID:</h3>
                 <div id="room-id">Generating...</div>
@@ -173,55 +173,26 @@
         let myAvatar;
         let roomId;
 
-        // STUN servers for WebRTC
-        const config = {
-            iceServers: [
-                {
-                    urls: [
-                        'stun:stun1.l.google.com:19302',
-                        'stun:stun2.l.google.com:19302'
-                    ]
-                }
-            ]
-        };
+        // Replace with your Ably API key
+        const ably = new Ably.Realtime('YOUR_ABLY_API_KEY'); 
+        const channelName = 'your-room-id'; 
 
-        // Create WebSocket connection for signaling
-        const ws = new WebSocket('wss://free.blr2.piesocket.com/v3/1?api_key=VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV&notify_self=1');
-
-        ws.onopen = () => {
-            document.getElementById('status').textContent = 'Connected to signaling server';
+        ably.connection.on('connected', () => {
+            document.getElementById('status').textContent = 'Connected to Ably';
             roomId = generateRoomId();
             document.getElementById('room-id').textContent = roomId;
             initializeSpace();
-        };
 
-        ws.onmessage = async (event) => {
-            const message = JSON.parse(event.data);
-            if (message.roomId !== roomId) return;
+            // Subscribe to the channel
+            const channel = ably.channels.get(channelName);
+            channel.subscribe('message', (message) => {
+                handleChannelMessage(message.data);
+            });
+        });
 
-            switch (message.type) {
-                case 'join-request':
-                    if (message.from !== roomId) {
-                        initiateConnection(message.from);
-                    }
-                    break;
-                case 'offer':
-                    if (message.to === roomId) {
-                        handleOffer(message);
-                    }
-                    break;
-                case 'answer':
-                    if (message.to === roomId) {
-                        handleAnswer(message);
-                    }
-                    break;
-                case 'ice-candidate':
-                    if (message.to === roomId) {
-                        handleNewICECandidate(message);
-                    }
-                    break;
-            }
-        };
+        ably.connection.on('failed', (error) => {
+            document.getElementById('status').textContent = `Connection failed: ${error.message}`;
+        });
 
         function generateRoomId() {
             return Math.random().toString(36).substr(2, 9);
@@ -257,128 +228,14 @@
             myAvatar.style.top = y + '%';
         }
 
-        async function joinRoom() {
-            const targetRoomId = document.getElementById('join-id').value.trim();
-            if (targetRoomId) {
-                ws.send(JSON.stringify({
-                    type: 'join-request',
-                    from: roomId,
-                    roomId: targetRoomId
-                }));
-            }
-        }
-
-        async function initiateConnection(targetId) {
-            const peerConnection = new RTCPeerConnection(config);
-            setupPeerConnection(peerConnection, targetId);
-
-            const offer = await peerConnection.createOffer();
-            await peerConnection.setLocalDescription(offer);
-
-            ws.send(JSON.stringify({
-                type: 'offer',
-                offer: offer,
-                from: roomId,
-                to: targetId
-            }));
-
-            connections.set(targetId, peerConnection);
-        }
-
-        async function handleOffer(message) {
-            const peerConnection = new RTCPeerConnection(config);
-            setupPeerConnection(peerConnection, message.from);
-
-            await peerConnection.setRemoteDescription(new RTCDescription(message.offer));
-            const answer = await peerConnection.createAnswer();
-            await peerConnection.setLocalDescription(answer);
-
-            ws.send(JSON.stringify({
-                type: 'answer',
-                answer: answer,
-                from: roomId,
-                to: message.from
-            }));
-
-            connections.set(message.from, peerConnection);
-        }
-
-        async function handleAnswer(message) {
-            const peerConnection = connections.get(message.from);
-            if (peerConnection) {
-                await peerConnection.setRemoteDescription(new RTCDescription(message.answer));
-            }
-        }
-
-        async function handleNewICECandidate(message) {
-            const peerConnection = connections.get(message.from);
-            if (peerConnection) {
-                try {
-                    await peerConnection.addIceCandidate(message.candidate);
-                } catch (e) {
-                    console.error('Error adding ice candidate:', e);
-                }
-            }
-        }
-
-        function setupPeerConnection(peerConnection, peerId) {
-            const dataChannel = peerConnection.createDataChannel('data');
-            setupDataChannel(dataChannel);
-
-            peerConnection.onicecandidate = (event) => {
-                if (event.candidate) {
-                    ws.send(JSON.stringify({
-                        type: 'ice-candidate',
-                        candidate: event.candidate,
-                        from: roomId,
-                        to: peerId
-                    }));
-                }
-            };
-
-            peerConnection.ondatachannel = (event) => {
-                setupDataChannel(event.channel);
-            };
-        }
-
-        function setupDataChannel(dataChannel) {
-            dataChannel.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                handlePeerMessage(data);
-            };
-        }
-
-        function handlePeerMessage(data) {
-            switch (data.type) {
-                case 'move':
-                    updatePeerPosition(data.peerId, data.x, data.y);
-                    break;
-                case 'chat':
-                    displayMessage(data.name, data.message);
-                    break;
-            }
-        }
-
-        function updatePeerPosition(peerId, x, y) {
-            let peerAvatar = document.getElementById(`peer-${peerId}`);
-            if (!peerAvatar) {
-                peerAvatar = createAvatar(`User ${peerId.substr(0, 4)}`, `hsl(${Math.random() * 360}, 70%, 50%)`, x, y);
-                peerAvatar.id = `peer-${peerId}`;
-                document.getElementById('virtual-space').appendChild(peerAvatar);
-            }
-            peerAvatar.style.left = x + '%';
-            peerAvatar.style.top = y + '%';
+        function joinRoom() {
+            // Not applicable with Ably in this simplified example
         }
 
         function broadcast(data) {
             data.peerId = roomId;
-            const message = JSON.stringify(data);
-            connections.forEach(connection => {
-                const dataChannel = connection.dataChannel;
-                if (dataChannel && dataChannel.readyState === 'open') {
-                    dataChannel.send(message);
-                }
-            });
+            const channel = ably.channels.get(channelName);
+            channel.publish('message', data);
         }
 
         function sendMessage() {
@@ -417,6 +274,7 @@
         document.getElementById('join-id').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') joinRoom();
         });
+        
     </script>
 </body>
 </html>
