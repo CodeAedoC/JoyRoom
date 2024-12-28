@@ -174,7 +174,7 @@
         let roomId;
 
         // Replace with your Ably API key
-        const ably = new Ably.Realtime('YOUR_ABLY_API_KEY'); 
+        const ably = new Ably.Realtime('3j9E7Q.yriEZQ:9T0CP5IQw_cit_5Ffstwnj0mPDYR9rVAernFs1IcnwA'); 
         const channelName = 'your-room-id'; 
 
         ably.connection.on('connected', () => {
@@ -274,7 +274,7 @@
         document.getElementById('join-id').addEventListener('keypress', (e) => {
             if (e.key === 'Enter') joinRoom();
         });
-        
+
     </script>
 </body>
 </html>
