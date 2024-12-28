@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Virtual Rooms</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: Arial, sans-serif;
+            background: #f0f2f5;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+
+        .room {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        #virtual-space {
+            width: 100%;
+            height: 400px;
+            background: white;
+            border-radius: 8px;
+            position: relative;
+            overflow: hidden;
+            border: 2px solid #ddd;
+        }
+
+        .user {
+            position: absolute;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #4CAF50;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .chat-container {
+            margin-top: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #chat-messages {
+            flex-grow: 1;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding: 10px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .message {
+            margin-bottom: 8px;
+            padding: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+        }
+
+        .input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        #message-input {
+            flex-grow: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="room">
+            <h2>Virtual Room</h2>
+            <div id="virtual-space"></div>
+            
+            <div class="chat-container">
+                <div id="chat-messages"></div>
+                <div class="input-container">
+                    <input type="text" id="message-input" placeholder="Type your message...">
+                    <button onclick="sendMessage()">Send</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+    <script>
+        // Initialize variables
+        let myId = null;
+        let peers = {};
+        let myAvatar = null;
+        const colors = ['#4CAF50', '#2196F3', '#f44336', '#9C27B0', '#FF9800'];
+
+        // Initialize PeerJS
+        const peer = new Peer({
+            host: 'peerjs-server.herokuapp.com',
+            secure: true,
+            port: 443
+        });
+
+        // When connected to PeerJS server
+        peer.on('open', id => {
+            myId = id;
+            initializeUser();
+        });
+
+        // Handle incoming connections
+        peer.on('connection', connection => {
+            handleConnection(connection);
+        });
+
+        function initializeUser() {
+            // Create user avatar
+            myAvatar = createUserAvatar();
+            
+            // Add movement listeners
+            document.getElementById('virtual-space').addEventListener('click', moveUser);
+        }
+
+        function createUserAvatar() {
+            const avatar = document.createElement('div');
+            avatar.className = 'user';
+            avatar.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            avatar.style.left = Math.random() * 80 + 10 + '%';
+            avatar.style.top = Math.random() * 80 + 10 + '%';
+            avatar.textContent = 'Me';
+            
+            document.getElementById('virtual-space').appendChild(avatar);
+            return avatar;
+        }
+
+        function moveUser(event) {
+            const space = document.getElementById('virtual-space');
+            const rect = space.getBoundingClientRect();
+            
+            const x = ((event.clientX - rect.left) / rect.width) * 100;
+            const y = ((event.clientY - rect.top) / rect.height) * 100;
+            
+            myAvatar.style.left = x + '%';
+            myAvatar.style.top = y + '%';
+            
+            // Broadcast position to all peers
+            broadcastPosition(x, y);
+        }
+
+        function broadcastPosition(x, y) {
+            const positionData = {
+                type: 'position',
+                x: x,
+                y: y
+            };
+            
+            Object.values(peers).forEach(conn => {
+                conn.send(positionData);
+            });
+        }
+
+        function handleConnection(connection) {
+            connection.on('data', data => {
+                if (data.type === 'position') {
+                    updatePeerPosition(connection.peer, data.x, data.y);
+                } else if (data.type === 'message') {
+                    displayMessage(connection.peer, data.message);
+                }
+            });
+            
+            peers[connection.peer] = connection;
+            createPeerAvatar(connection.peer);
+        }
+
+        function createPeerAvatar(peerId) {
+            const avatar = document.createElement('div');
+            avatar.className = 'user';
+            avatar.id = `peer-${peerId}`;
+            avatar.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
+            avatar.textContent = 'User';
+            
+            document.getElementById('virtual-space').appendChild(avatar);
+        }
+
+        function updatePeerPosition(peerId, x, y) {
+            const peerAvatar = document.getElementById(`peer-${peerId}`);
+            if (peerAvatar) {
+                peerAvatar.style.left = x + '%';
+                peerAvatar.style.top = y + '%';
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('message-input');
+            const message = input.value.trim();
+            
+            if (message) {
+                displayMessage('Me', message);
+                
+                // Send to all peers
+                const messageData = {
+                    type: 'message',
+                    message: message
+                };
+                
+                Object.values(peers).forEach(conn => {
+                    conn.send(messageData);
+                });
+                
+                input.value = '';
+            }
+        }
+
+        function displayMessage(sender, message) {
+            const messagesDiv = document.getElementById('chat-messages');
+            const messageElement = document.createElement('div');
+            messageElement.className = 'message';
+            messageElement.textContent = `${sender}: ${message}`;
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        // Handle enter key in chat input
+        document.getElementById('message-input').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
