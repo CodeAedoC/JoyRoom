@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Rooms</title>
     <style>
-        /* Previous styles remain the same */
         * {
             margin: 0;
             padding: 0;
@@ -15,12 +14,12 @@
         body {
             font-family: Arial, sans-serif;
             background: #f0f2f5;
+            padding: 20px;
         }
 
         .container {
             max-width: 1200px;
-            margin: 20px auto;
-            padding: 20px;
+            margin: 0 auto;
         }
 
         .room {
@@ -28,54 +27,34 @@
             border-radius: 8px;
             padding: 20px;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
         }
 
-        #connection-status {
+        .status {
             padding: 10px;
-            margin-bottom: 10px;
+            margin-bottom: 20px;
             border-radius: 4px;
             text-align: center;
-        }
-
-        .status-connected {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .status-disconnected {
-            background: #f8d7da;
-            color: #721c24;
-        }
-
-        .status-connecting {
-            background: #fff3cd;
-            color: #856404;
-        }
-
-        #room-controls {
-            margin-bottom: 20px;
-            padding: 15px;
             background: #f8f9fa;
-            border-radius: 8px;
         }
 
-        #room-controls input {
-            padding: 8px;
-            margin-right: 10px;
-            border: 1px solid #ddd;
+        #room-id {
+            font-family: monospace;
+            padding: 10px;
+            background: #e9ecef;
             border-radius: 4px;
-            width: 200px;
+            margin: 10px 0;
+            word-break: break-all;
         }
 
         #virtual-space {
             width: 100%;
             height: 400px;
             background: white;
+            border: 2px solid #ddd;
             border-radius: 8px;
             position: relative;
             overflow: hidden;
-            border: 2px solid #ddd;
+            margin: 20px 0;
         }
 
         .user {
@@ -83,13 +62,12 @@
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            background: #4CAF50;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             cursor: pointer;
-            transition: all 0.3s ease;
+            user-select: none;
         }
 
         .user::after {
@@ -99,20 +77,20 @@
             left: 50%;
             transform: translateX(-50%);
             white-space: nowrap;
-            color: #333;
+            color: black;
+            font-size: 14px;
         }
 
-        .chat-container {
-            margin-top: 20px;
-            background: white;
-            border-radius: 8px;
-            padding: 20px;
+        #chat {
             height: 300px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
             display: flex;
             flex-direction: column;
         }
 
-        #chat-messages {
+        #messages {
             flex-grow: 1;
             overflow-y: auto;
             margin-bottom: 10px;
@@ -128,12 +106,12 @@
             border-radius: 4px;
         }
 
-        .input-container {
+        #chat-input {
             display: flex;
             gap: 10px;
         }
 
-        #message-input {
+        input[type="text"] {
             flex-grow: 1;
             padding: 8px;
             border: 1px solid #ddd;
@@ -152,243 +130,273 @@
         button:hover {
             background: #45a049;
         }
-
-        #user-count {
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
-
-        #peer-id {
-            font-family: monospace;
-            padding: 5px;
-            background: #f8f9fa;
-            border-radius: 4px;
-            margin: 0 5px;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <div class="room">
-            <div id="connection-status" class="status-connecting">
-                Connecting to room...
-            </div>
-            <div id="room-controls">
-                <p>Your ID: <span id="peer-id">Connecting...</span> 
-                   <button onclick="copyPeerId()">Copy ID</button>
-                </p>
-                <div style="margin-top: 10px;">
-                    <input type="text" id="peer-id-input" placeholder="Enter peer ID to connect">
-                    <button onclick="connectToPeer()">Connect</button>
-                </div>
-            </div>
-            <div id="user-count">Connected Users: 1</div>
-            <div id="virtual-space"></div>
+            <div class="status" id="status">Loading...</div>
             
-            <div class="chat-container">
-                <div id="chat-messages"></div>
-                <div class="input-container">
-                    <input type="text" id="message-input" placeholder="Type your message...">
+            <div>
+                <h3>Your Room ID:</h3>
+                <div id="room-id">Generating...</div>
+                <button onclick="copyRoomId()">Copy Room ID</button>
+            </div>
+
+            <div>
+                <h3>Join Room:</h3>
+                <input type="text" id="join-id" placeholder="Enter Room ID">
+                <button onclick="joinRoom()">Join</button>
+            </div>
+
+            <div id="virtual-space"></div>
+
+            <div id="chat">
+                <div id="messages"></div>
+                <div id="chat-input">
+                    <input type="text" id="message-input" placeholder="Type a message...">
                     <button onclick="sendMessage()">Send</button>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script>
-        // Initialize variables
-        let myId = null;
-        let peers = {};
-        let myAvatar = null;
-        const colors = ['#4CAF50', '#2196F3', '#f44336', '#9C27B0', '#FF9800'];
-        let userName = null;
-
-        // Get username
+        let userName = prompt("Enter your name:", "User" + Math.floor(Math.random() * 1000));
         while (!userName) {
-            userName = prompt("Enter your name:", "User" + Math.floor(Math.random() * 1000));
+            userName = prompt("Name is required. Enter your name:", "User" + Math.floor(Math.random() * 1000));
         }
 
-        // Initialize PeerJS
-        const peer = new Peer({
-            config: {
-                iceServers: [
-                    { urls: "stun:stun.l.google.com:19302" },
-                    { urls: "stun:stun1.l.google.com:19302" }
-                ]
+        let myColor = `hsl(${Math.random() * 360}, 70%, 50%)`;
+        let myPosition = { x: 50, y: 50 };
+        let connections = new Map();
+        let myAvatar;
+        let roomId;
+
+        // STUN servers for WebRTC
+        const config = {
+            iceServers: [
+                {
+                    urls: [
+                        'stun:stun1.l.google.com:19302',
+                        'stun:stun2.l.google.com:19302'
+                    ]
+                }
+            ]
+        };
+
+        // Create WebSocket connection for signaling
+        const ws = new WebSocket('wss://free.blr2.piesocket.com/v3/1?api_key=VCXCEuvhGcBDP7XhiJJUDvR1e1D3eiVjgZ9VRiaV&notify_self=1');
+
+        ws.onopen = () => {
+            document.getElementById('status').textContent = 'Connected to signaling server';
+            roomId = generateRoomId();
+            document.getElementById('room-id').textContent = roomId;
+            initializeSpace();
+        };
+
+        ws.onmessage = async (event) => {
+            const message = JSON.parse(event.data);
+            if (message.roomId !== roomId) return;
+
+            switch (message.type) {
+                case 'join-request':
+                    if (message.from !== roomId) {
+                        initiateConnection(message.from);
+                    }
+                    break;
+                case 'offer':
+                    if (message.to === roomId) {
+                        handleOffer(message);
+                    }
+                    break;
+                case 'answer':
+                    if (message.to === roomId) {
+                        handleAnswer(message);
+                    }
+                    break;
+                case 'ice-candidate':
+                    if (message.to === roomId) {
+                        handleNewICECandidate(message);
+                    }
+                    break;
             }
-        });
+        };
 
-        function updateStatus(status, message) {
-            const statusDiv = document.getElementById('connection-status');
-            statusDiv.className = `status-${status}`;
-            statusDiv.textContent = message;
+        function generateRoomId() {
+            return Math.random().toString(36).substr(2, 9);
         }
 
-        function updateUserCount() {
-            const count = Object.keys(peers).length + 1;
-            document.getElementById('user-count').textContent = `Connected Users: ${count}`;
+        function initializeSpace() {
+            myAvatar = createAvatar(userName, myColor, myPosition.x, myPosition.y);
+            document.getElementById('virtual-space').appendChild(myAvatar);
+
+            document.getElementById('virtual-space').addEventListener('click', (e) => {
+                const rect = e.target.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / rect.width) * 100;
+                const y = ((e.clientY - rect.top) / rect.height) * 100;
+                moveAvatar(x, y);
+                broadcast({ type: 'move', x, y });
+            });
         }
 
-        // When connected to PeerJS server
-        peer.on('open', id => {
-            myId = id;
-            document.getElementById('peer-id').textContent = id;
-            updateStatus('connected', 'Connected! Share your ID with others to connect.');
-            initializeUser();
-            console.log('My peer ID is: ' + id);
-        });
-
-        function copyPeerId() {
-            navigator.clipboard.writeText(myId)
-                .then(() => alert('ID copied to clipboard!'))
-                .catch(err => console.error('Failed to copy:', err));
-        }
-
-        function connectToPeer() {
-            const peerId = document.getElementById('peer-id-input').value.trim();
-            if (peerId && peerId !== myId) {
-                const conn = peer.connect(peerId);
-                handleConnection(conn);
-                document.getElementById('peer-id-input').value = '';
-            }
-        }
-
-        // Handle connection errors
-        peer.on('error', error => {
-            console.error('PeerJS error:', error);
-            updateStatus('disconnected', 'Connection error: ' + error.type);
-        });
-
-        // Handle disconnection
-        peer.on('disconnected', () => {
-            updateStatus('disconnected', 'Disconnected from server');
-            peer.reconnect();
-        });
-
-        // Handle incoming connections
-        peer.on('connection', connection => {
-            handleConnection(connection);
-        });
-
-        function initializeUser() {
-            myAvatar = createUserAvatar(true);
-            document.getElementById('virtual-space').addEventListener('click', moveUser);
-        }
-
-        // Rest of the functions remain the same as in the previous version
-        function createUserAvatar(isMe = false) {
+        function createAvatar(name, color, x, y) {
             const avatar = document.createElement('div');
             avatar.className = 'user';
-            avatar.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            avatar.style.left = Math.random() * 80 + 10 + '%';
-            avatar.style.top = Math.random() * 80 + 10 + '%';
-            avatar.setAttribute('data-name', isMe ? userName : 'User');
-            
-            document.getElementById('virtual-space').appendChild(avatar);
+            avatar.style.backgroundColor = color;
+            avatar.style.left = x + '%';
+            avatar.style.top = y + '%';
+            avatar.setAttribute('data-name', name);
             return avatar;
         }
 
-        function moveUser(event) {
-            const space = document.getElementById('virtual-space');
-            const rect = space.getBoundingClientRect();
-            
-            const x = ((event.clientX - rect.left) / rect.width) * 100;
-            const y = ((event.clientY - rect.top) / rect.height) * 100;
-            
+        function moveAvatar(x, y) {
+            myPosition.x = x;
+            myPosition.y = y;
             myAvatar.style.left = x + '%';
             myAvatar.style.top = y + '%';
-            
-            broadcastPosition(x, y);
         }
 
-        function broadcastPosition(x, y) {
-            const positionData = {
-                type: 'position',
-                x: x,
-                y: y,
-                name: userName
-            };
-            
-            Object.values(peers).forEach(conn => {
-                if (conn.open) {
-                    conn.send(positionData);
-                }
-            });
-        }
-
-        function handleConnection(connection) {
-            connection.on('data', data => {
-                if (data.type === 'position') {
-                    updatePeerPosition(connection.peer, data.x, data.y, data.name);
-                } else if (data.type === 'message') {
-                    displayMessage(data.name, data.message);
-                }
-            });
-
-            connection.on('open', () => {
-                peers[connection.peer] = connection;
-                createPeerAvatar(connection.peer);
-                updateUserCount();
-                displayMessage('System', 'New user connected!');
-                console.log('Connected to peer:', connection.peer);
-            });
-
-            connection.on('close', () => {
-                const peerAvatar = document.getElementById(`peer-${connection.peer}`);
-                if (peerAvatar) peerAvatar.remove();
-                delete peers[connection.peer];
-                updateUserCount();
-                displayMessage('System', 'A user disconnected');
-                console.log('Disconnected from peer:', connection.peer);
-            });
-        }
-
-        function createPeerAvatar(peerId) {
-            const avatar = document.createElement('div');
-            avatar.className = 'user';
-            avatar.id = `peer-${peerId}`;
-            avatar.style.backgroundColor = colors[Math.floor(Math.random() * colors.length)];
-            avatar.setAttribute('data-name', 'User');
-            
-            document.getElementById('virtual-space').appendChild(avatar);
-            return avatar;
-        }
-
-        function updatePeerPosition(peerId, x, y, name) {
-            const peerAvatar = document.getElementById(`peer-${peerId}`);
-            if (peerAvatar) {
-                peerAvatar.style.left = x + '%';
-                peerAvatar.style.top = y + '%';
-                peerAvatar.setAttribute('data-name', name);
+        async function joinRoom() {
+            const targetRoomId = document.getElementById('join-id').value.trim();
+            if (targetRoomId) {
+                ws.send(JSON.stringify({
+                    type: 'join-request',
+                    from: roomId,
+                    roomId: targetRoomId
+                }));
             }
+        }
+
+        async function initiateConnection(targetId) {
+            const peerConnection = new RTCPeerConnection(config);
+            setupPeerConnection(peerConnection, targetId);
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            ws.send(JSON.stringify({
+                type: 'offer',
+                offer: offer,
+                from: roomId,
+                to: targetId
+            }));
+
+            connections.set(targetId, peerConnection);
+        }
+
+        async function handleOffer(message) {
+            const peerConnection = new RTCPeerConnection(config);
+            setupPeerConnection(peerConnection, message.from);
+
+            await peerConnection.setRemoteDescription(new RTCDescription(message.offer));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            ws.send(JSON.stringify({
+                type: 'answer',
+                answer: answer,
+                from: roomId,
+                to: message.from
+            }));
+
+            connections.set(message.from, peerConnection);
+        }
+
+        async function handleAnswer(message) {
+            const peerConnection = connections.get(message.from);
+            if (peerConnection) {
+                await peerConnection.setRemoteDescription(new RTCDescription(message.answer));
+            }
+        }
+
+        async function handleNewICECandidate(message) {
+            const peerConnection = connections.get(message.from);
+            if (peerConnection) {
+                try {
+                    await peerConnection.addIceCandidate(message.candidate);
+                } catch (e) {
+                    console.error('Error adding ice candidate:', e);
+                }
+            }
+        }
+
+        function setupPeerConnection(peerConnection, peerId) {
+            const dataChannel = peerConnection.createDataChannel('data');
+            setupDataChannel(dataChannel);
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    ws.send(JSON.stringify({
+                        type: 'ice-candidate',
+                        candidate: event.candidate,
+                        from: roomId,
+                        to: peerId
+                    }));
+                }
+            };
+
+            peerConnection.ondatachannel = (event) => {
+                setupDataChannel(event.channel);
+            };
+        }
+
+        function setupDataChannel(dataChannel) {
+            dataChannel.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                handlePeerMessage(data);
+            };
+        }
+
+        function handlePeerMessage(data) {
+            switch (data.type) {
+                case 'move':
+                    updatePeerPosition(data.peerId, data.x, data.y);
+                    break;
+                case 'chat':
+                    displayMessage(data.name, data.message);
+                    break;
+            }
+        }
+
+        function updatePeerPosition(peerId, x, y) {
+            let peerAvatar = document.getElementById(`peer-${peerId}`);
+            if (!peerAvatar) {
+                peerAvatar = createAvatar(`User ${peerId.substr(0, 4)}`, `hsl(${Math.random() * 360}, 70%, 50%)`, x, y);
+                peerAvatar.id = `peer-${peerId}`;
+                document.getElementById('virtual-space').appendChild(peerAvatar);
+            }
+            peerAvatar.style.left = x + '%';
+            peerAvatar.style.top = y + '%';
+        }
+
+        function broadcast(data) {
+            data.peerId = roomId;
+            const message = JSON.stringify(data);
+            connections.forEach(connection => {
+                const dataChannel = connection.dataChannel;
+                if (dataChannel && dataChannel.readyState === 'open') {
+                    dataChannel.send(message);
+                }
+            });
         }
 
         function sendMessage() {
             const input = document.getElementById('message-input');
             const message = input.value.trim();
-            
             if (message) {
                 displayMessage(userName, message);
-                
-                const messageData = {
-                    type: 'message',
-                    message: message,
-                    name: userName
-                };
-                
-                Object.values(peers).forEach(conn => {
-                    if (conn.open) {
-                        conn.send(messageData);
-                    }
+                broadcast({
+                    type: 'chat',
+                    name: userName,
+                    message: message
                 });
-                
                 input.value = '';
             }
         }
 
         function displayMessage(sender, message) {
-            const messagesDiv = document.getElementById('chat-messages');
+            const messagesDiv = document.getElementById('messages');
             const messageElement = document.createElement('div');
             messageElement.className = 'message';
             messageElement.textContent = `${sender}: ${message}`;
@@ -396,16 +404,18 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        document.getElementById('message-input').addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                sendMessage();
-            }
+        function copyRoomId() {
+            navigator.clipboard.writeText(roomId)
+                .then(() => alert('Room ID copied to clipboard!'))
+                .catch(err => console.error('Failed to copy:', err));
+        }
+
+        document.getElementById('message-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
         });
 
-        document.getElementById('peer-id-input').addEventListener('keypress', (event) => {
-            if (event.key === 'Enter') {
-                connectToPeer();
-            }
+        document.getElementById('join-id').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') joinRoom();
         });
     </script>
 </body>
