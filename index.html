@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Rooms</title>
     <style>
+        /* Previous styles remain the same */
         * {
             margin: 0;
             padding: 0;
@@ -50,6 +51,21 @@
         .status-connecting {
             background: #fff3cd;
             color: #856404;
+        }
+
+        #room-controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+
+        #room-controls input {
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 200px;
         }
 
         #virtual-space {
@@ -141,6 +157,14 @@
             margin-bottom: 10px;
             font-weight: bold;
         }
+
+        #peer-id {
+            font-family: monospace;
+            padding: 5px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            margin: 0 5px;
+        }
     </style>
 </head>
 <body>
@@ -149,8 +173,16 @@
             <div id="connection-status" class="status-connecting">
                 Connecting to room...
             </div>
+            <div id="room-controls">
+                <p>Your ID: <span id="peer-id">Connecting...</span> 
+                   <button onclick="copyPeerId()">Copy ID</button>
+                </p>
+                <div style="margin-top: 10px;">
+                    <input type="text" id="peer-id-input" placeholder="Enter peer ID to connect">
+                    <button onclick="connectToPeer()">Connect</button>
+                </div>
+            </div>
             <div id="user-count">Connected Users: 1</div>
-            <h2>Virtual Room</h2>
             <div id="virtual-space"></div>
             
             <div class="chat-container">
@@ -177,9 +209,8 @@
             userName = prompt("Enter your name:", "User" + Math.floor(Math.random() * 1000));
         }
 
-        // Initialize PeerJS with a cloud server
+        // Initialize PeerJS
         const peer = new Peer({
-            debug: 2,
             config: {
                 iceServers: [
                     { urls: "stun:stun.l.google.com:19302" },
@@ -188,26 +219,40 @@
             }
         });
 
-        // Update connection status
         function updateStatus(status, message) {
             const statusDiv = document.getElementById('connection-status');
             statusDiv.className = `status-${status}`;
             statusDiv.textContent = message;
         }
 
-        // Update user count
         function updateUserCount() {
-            const count = Object.keys(peers).length + 1; // +1 for current user
+            const count = Object.keys(peers).length + 1;
             document.getElementById('user-count').textContent = `Connected Users: ${count}`;
         }
 
         // When connected to PeerJS server
         peer.on('open', id => {
             myId = id;
-            updateStatus('connected', 'Connected to room! Your ID: ' + id.substr(0, 6));
+            document.getElementById('peer-id').textContent = id;
+            updateStatus('connected', 'Connected! Share your ID with others to connect.');
             initializeUser();
             console.log('My peer ID is: ' + id);
         });
+
+        function copyPeerId() {
+            navigator.clipboard.writeText(myId)
+                .then(() => alert('ID copied to clipboard!'))
+                .catch(err => console.error('Failed to copy:', err));
+        }
+
+        function connectToPeer() {
+            const peerId = document.getElementById('peer-id-input').value.trim();
+            if (peerId && peerId !== myId) {
+                const conn = peer.connect(peerId);
+                handleConnection(conn);
+                document.getElementById('peer-id-input').value = '';
+            }
+        }
 
         // Handle connection errors
         peer.on('error', error => {
@@ -227,24 +272,11 @@
         });
 
         function initializeUser() {
-            // Create user avatar
             myAvatar = createUserAvatar(true);
-            
-            // Add movement listeners
             document.getElementById('virtual-space').addEventListener('click', moveUser);
-
-            // Connect to existing peers
-            const roomId = 'virtual-room'; // You can change this to create different rooms
-            peer.listAllPeers(peerIds => {
-                peerIds.forEach(peerId => {
-                    if (peerId !== myId) {
-                        const conn = peer.connect(peerId);
-                        handleConnection(conn);
-                    }
-                });
-            });
         }
 
+        // Rest of the functions remain the same as in the previous version
         function createUserAvatar(isMe = false) {
             const avatar = document.createElement('div');
             avatar.className = 'user';
@@ -267,7 +299,6 @@
             myAvatar.style.left = x + '%';
             myAvatar.style.top = y + '%';
             
-            // Broadcast position to all peers
             broadcastPosition(x, y);
         }
 
@@ -299,6 +330,7 @@
                 peers[connection.peer] = connection;
                 createPeerAvatar(connection.peer);
                 updateUserCount();
+                displayMessage('System', 'New user connected!');
                 console.log('Connected to peer:', connection.peer);
             });
 
@@ -307,6 +339,7 @@
                 if (peerAvatar) peerAvatar.remove();
                 delete peers[connection.peer];
                 updateUserCount();
+                displayMessage('System', 'A user disconnected');
                 console.log('Disconnected from peer:', connection.peer);
             });
         }
@@ -338,7 +371,6 @@
             if (message) {
                 displayMessage(userName, message);
                 
-                // Send to all peers
                 const messageData = {
                     type: 'message',
                     message: message,
@@ -364,10 +396,15 @@
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        // Handle enter key in chat input
         document.getElementById('message-input').addEventListener('keypress', (event) => {
             if (event.key === 'Enter') {
                 sendMessage();
+            }
+        });
+
+        document.getElementById('peer-id-input').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                connectToPeer();
             }
         });
     </script>
