@@ -229,7 +229,20 @@
         }
 
         function joinRoom() {
-            // Not applicable with Ably in this simplified example
+            const targetRoomId = document.getElementById('join-id').value.trim();
+            if (targetRoomId) {
+                joinedRoomId = targetRoomId; 
+                const channel = ably.channels.get(targetRoomId); 
+                channel.subscribe('message', (message) => {
+                    handleChannelMessage(message.data);
+                });
+            }
+        }
+
+        function broadcast(data) {
+            data.peerId = roomId;
+            const channel = ably.channels.get(joinedRoomId || roomId); 
+            channel.publish('message', data);
         }
 
         function broadcast(data) {
